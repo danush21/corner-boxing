@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>CORNER — AI Boxing Coach</title>
+    <script>
+      // Intercept errors before they propagate
+      window.addEventListener('error', (event) => {
+        if (event.message && event.message.includes('Cannot set properties of null')) {
+          console.log('Caught null assignment error:', event);
+          event.preventDefault();
+        }
+      }, true);
+
+      // Setup global shims BEFORE any other scripts or modules
+      (function() {
+        // Create alea mock
+        const aleaMock = function(seed) {
+          return {
+            random: function() { return Math.random(); },
+            uint32: function() { return Math.floor(Math.random() * 0x100000000); },
+            fract32: function() { return Math.random(); }
+          };
+        };
+
+        // Create seedrandom mock
+        const seedrandomMock = function(seed) {
+          return Math.random;
+        };
+
+        // Create a safe exports object that won't be null
+        const exportsTarget = { 
+          alea: aleaMock,
+          seedrandom: seedrandomMock,
+          default: { alea: aleaMock }
+        };
+
+        const exportsHandler = {
+          get(target, prop) {
+            return target[prop];
+          },
+          set(target, prop, value) {
+            console.log('Setting exports.' + prop, value);
+            target[prop] = value;
+            return true;
+          }
+        };
+
+        const exportsProxy = new Proxy(exportsTarget, exportsHandler);
+
+        // Create a safe module object
+        const moduleHandler = {
+          get(target, prop) {
+            if (prop === 'exports') return exportsProxy;
+            return target[prop];
+          },
+          set(target, prop, value) {
+            console.log('Setting module.' + prop, value);
+            if (prop === 'exports') {
+              Object.assign(exportsTarget, value);
+              return true;
+            }
+            if (prop === 'alea' || prop === 'seedrandom') {
+              exportsTarget[prop] = value;
+              return true;
+            }
+            target[prop] = value;
+            return true;
+          }
+        };
+
+        const moduleTarget = { 
+          exports: exportsProxy, 
+          alea: aleaMock,
+          seedrandom: seedrandomMock
+        };
+        const moduleProxy = new Proxy(moduleTarget, moduleHandler);
+
+        // Setup global context
+        globalThis.alea = aleaMock;
+        globalThis.seedrandom = seedrandomMock;
+        globalThis.module = moduleProxy;
+        globalThis.exports = exportsProxy;
+        globalThis.require = function(id) {
+          if (id === 'alea' || id === './lib/alea') return aleaMock;
+          if (id === 'seedrandom' || id === './seedrandom') return seedrandomMock;
+          return null;
+        };
+
+        // Ensure window has these too
+        if (typeof window !== 'undefined') {
+          window.alea = aleaMock;
+          window.seedrandom = seedrandomMock;
+          window.module = moduleProxy;
+          window.exports = exportsProxy;
+          window.require = globalThis.require;
+          window.global = window;
+        }
+      })();
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow+Condensed:wght@300;400;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet" />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>
