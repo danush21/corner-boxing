@@ -111,13 +111,22 @@
   .status-dot.active { background: var(--green); box-shadow: 0 0 8px var(--green); }
   .status-dot.warn   { background: var(--gold);  box-shadow: 0 0 8px var(--gold); }
 
-  .app-shell { width: 100%; max-width: 100vw; }
+  /* Exactly one viewport tall, so every page's internal
+     `height: 100%; overflow-y: auto` container has a definite height to
+     resolve against. With min-height the shell grew to fit its content,
+     pushing the video box — and anything anchored to its bottom edge, the
+     punch flash and End Session button — below the fold. */
+  .app-shell { width: 100%; max-width: 100vw; height: 100vh; }
+  .app-main  { overflow: hidden; }
   .app-header-inner { display: flex; align-items: center; justify-content: space-between; gap: 16px; width: 100%; }
   .app-brand { display: flex; align-items: center; gap: 16px; min-width: 0; }
   .app-brand-mark { display: inline-flex; align-items: center; flex-wrap: wrap; }
   .app-nav { display: flex; gap: 4px; flex-wrap: wrap; }
   .app-user-row { display: flex; align-items: center; gap: 16px; flex-shrink: 0; }
-  .coach-layout { display: grid; grid-template-columns: minmax(0, 1fr) 340px; height: 100%; min-height: 0; }
+  /* Explicit row: without it the implicit row sizes to the sidebar's content,
+     stretching the video box past the viewport so anything anchored to its
+     bottom (punch flash, End Session) renders below the fold. */
+  .coach-layout { display: grid; grid-template-columns: minmax(0, 1fr) 340px; grid-template-rows: minmax(0, 1fr); height: 100%; min-height: 0; }
   .coach-video { min-height: 280px; }
   .coach-sidebar { background: var(--panel); border-left: 1px solid var(--border); display: flex; flex-direction: column; height: 100%; min-height: 0; overflow: hidden; }
   .history-layout { display: flex; height: 100%; overflow: hidden; }
@@ -165,6 +174,9 @@
       border-left: none;
       border-top: 1px solid var(--border);
     }
+    /* Stacked layout: the sidebar row is auto-height, so let the page scroll. */
+    .app-shell { height: auto; min-height: 100vh; }
+    .app-main  { overflow: visible; }
   }
 
   @media (max-width: 640px) {

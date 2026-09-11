@@ -15,7 +15,7 @@ export default function Layout() {
   const handleLogout = () => { logout(); navigate('/login'); };
 
   return (
-    <div className="app-shell" style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', width: '100%' }}>
+    <div className="app-shell" style={{ display: 'flex', flexDirection: 'column', width: '100%' }}>
       {/* NAVBAR */}
       <header className="app-header" style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
@@ -60,7 +60,7 @@ export default function Layout() {
       </header>
 
       {/* PAGE CONTENT */}
-      <main style={{ flex: 1, minHeight: 0, overflow: 'hidden', width: '100%' }}>
+      <main className="app-main" style={{ flex: 1, minHeight: 0, width: '100%' }}>
         <Outlet />
       </main>
     </div>
