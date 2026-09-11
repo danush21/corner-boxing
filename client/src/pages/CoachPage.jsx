@@ -40,6 +40,10 @@ const COMBO_TIPS = {
   'BODY COMBO':        'Mix up head and body levels!',
 };
 
+// A tip takes ~2.6s to speak but punches land every ~700ms, so tips are paced
+// rather than spoken one-per-punch. The sidebar still logs every one.
+const TIP_SPEECH_INTERVAL_MS = 5000;
+
 function formatDur(s) { const m = Math.floor(s/60); return m ? `${m}m ${s%60}s` : `${s}s`; }
 
 export default function CoachPage() {
@@ -58,6 +62,7 @@ export default function CoachPage() {
   const comboCountsRef = useRef({});
   const lastGuardWarnRef = useRef(0);
   const feedbackIdxRef = useRef({});
+  const lastTipSpeechRef = useRef(0);
 
   const [running,   setRunning]   = useState(false);
   const [loading,   setLoading]   = useState(false);
@@ -79,14 +84,24 @@ export default function CoachPage() {
     savedMsgsRef.current.push({ text, tag, type, ts: Date.now() });
   }, []);
 
-  const speakFeedback = useCallback((text) => {
+  const speakFeedback = useCallback((text, level = 'normal') => {
     const cleanText = String(text || '')
       .replace(/⚠️/g, '')
       .replace(/[^a-zA-Z0-9 ,.!?\-]/g, ' ')
       .replace(/\s+/g, ' ')
       .trim();
-    if (cleanText) speak(cleanText, true);
+    if (cleanText) speak(cleanText, level);
   }, [speak]);
+
+  // Per-punch tips are the one channel that outruns speech — punches land every
+  // ~700ms, a tip takes ~2.6s to say. Pacing them here is what keeps the queue
+  // short enough that the AI coaching still gets through.
+  const speakTip = useCallback((text) => {
+    const now = Date.now();
+    if (now - lastTipSpeechRef.current < TIP_SPEECH_INTERVAL_MS) return;
+    lastTipSpeechRef.current = now;
+    speakFeedback(text, 'normal');
+  }, [speakFeedback]);
 
   const syncCanvasSize = useCallback(() => {
     const video = videoRef.current;
@@ -134,6 +149,7 @@ export default function CoachPage() {
       savedMsgsRef.current = [];
       startTimeRef.current = Date.now();
       feedbackIdxRef.current = {};
+      lastTipSpeechRef.current = 0;
       engine.resetHistory();
 
       setRunning(true);
@@ -199,7 +215,7 @@ export default function CoachPage() {
               feedbackIdxRef.current[punch] = idx + 1;
               if (guard < 40) msg += ' ⚠️ Hands up!';
               addMsg(msg, punch.toUpperCase() + ' TIP');
-              speakFeedback(msg);
+              speakTip(msg);
 
               // Combo detection
               const combo = engine.detectCombo(punch);
@@ -209,7 +225,10 @@ export default function CoachPage() {
                 setComboFlash(combo);
                 setTimeout(() => setComboFlash(null), 900);
                 const comboText = `${combo.name} (${combo.label}) — ${COMBO_TIPS[combo.name] || ''}`;
-                speakFeedback(comboText);
+                // Say the name only — the coaching tip stays in the sidebar.
+                // Announcing the full line took ~3.3s, long enough to crowd
+                // out the per-punch tips and the AI coach.
+                speakFeedback(combo.name.replace(/-/g, ' '), 'normal');
                 addMsg(comboText, 'COMBO');
               }
             }
@@ -218,7 +237,7 @@ export default function CoachPage() {
             const now = Date.now();
             if (guard < 40 && now - lastGuardWarnRef.current > 8000) {
               lastGuardWarnRef.current = now;
-              speak('Hands up! Guard is low!', true);
+              speak('Hands up! Guard is low!', 'urgent');
             }
 
             // Draw skeleton
@@ -239,7 +258,7 @@ export default function CoachPage() {
       cancelled = true;
       if (animRef.current) cancelAnimationFrame(animRef.current);
     };
-  }, [running, engine, addMsg, speak, speakFeedback]);
+  }, [running, engine, addMsg, speak, speakFeedback, speakTip]);
 
   // Sync canvas size to video
   useEffect(() => {
@@ -431,7 +450,7 @@ export default function CoachPage() {
           <span style={{ fontFamily:'"Share Tech Mono"', fontSize:'0.6rem', letterSpacing:3, color:'var(--dim)' }}>🔊 VOICE COACHING</span>
           <label style={{ display:'flex', alignItems:'center', gap:8, cursor:'pointer' }}>
             <span style={{ fontFamily:'"Share Tech Mono"', fontSize:'0.65rem', color:'var(--dim)' }}>{audioOn?'ON':'OFF'}</span>
-            <div onClick={() => { setAudioOn(v => { setSpeechEnabled(!v); return !v; })}  }
+            <div onClick={() => { const next = !audioOn; setAudioOn(next); setSpeechEnabled(next); }}
               style={{ width:36, height:18, background: audioOn ? 'var(--red)' : 'var(--border)', borderRadius:9, position:'relative', cursor:'pointer', transition:'background 0.2s' }}>
               <div style={{ position:'absolute', top:2, left: audioOn ? 20 : 2, width:14, height:14, background: audioOn ? '#fff' : 'var(--dim)', borderRadius:'50%', transition:'left 0.2s' }} />
             </div>
